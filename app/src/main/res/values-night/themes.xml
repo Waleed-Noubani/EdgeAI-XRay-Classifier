@@ -1,0 +1,13 @@
+<resources>
+
+    <style name="Theme.EdgeAIClassifier" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#185FA5</item>
+    </style>
+
+    <style name="Theme.EdgeAiClassifier.Splash" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowBackground">#0C447C</item>
+        <item name="android:statusBarColor">#0C447C</item>
+        <item name="android:navigationBarColor">#0C447C</item>
+    </style>
+
+</resources>
