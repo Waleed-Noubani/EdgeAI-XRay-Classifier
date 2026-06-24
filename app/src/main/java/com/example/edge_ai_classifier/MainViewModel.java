@@ -15,6 +15,7 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -26,26 +27,30 @@ public class MainViewModel extends AndroidViewModel {
         public static class Loading extends UiState {}
 
         public static class Success extends UiState {
-            public final String prediction;
-            public final int    confidence;
-            public final boolean isPositive;
-            public final int    probPneumonia;  // combined probability of any pneumonia class
-            public final int    probNormal;
-            public final long   inferenceTimeMs;
-            public final String modelSize;
-            public final long   memoryUsedMb;
-            public final long   memoryAvailableMb;
-            public final int    memoryUsedPercent;
+            public final String  prediction;      // e.g. "COVID-19"
+            public final int     confidence;      // winning class %
+            public final boolean isPositive;      // false only for "Normal"
+            public final int     probCovid;
+            public final int     probNormal;
+            public final int     probPneumonia;
+            public final int     probTuberculosis;
+            public final long    inferenceTimeMs;
+            public final String  modelSize;
+            public final long    memoryUsedMb;
+            public final long    memoryAvailableMb;
+            public final int     memoryUsedPercent;
 
             public Success(String prediction, int confidence, boolean isPositive,
-                           int probPneumonia, int probNormal,
+                           int probCovid, int probNormal, int probPneumonia, int probTuberculosis,
                            long inferenceTimeMs, String modelSize,
                            long memoryUsedMb, long memoryAvailableMb, int memoryUsedPercent) {
                 this.prediction        = prediction;
                 this.confidence        = confidence;
                 this.isPositive        = isPositive;
-                this.probPneumonia     = probPneumonia;
+                this.probCovid         = probCovid;
                 this.probNormal        = probNormal;
+                this.probPneumonia     = probPneumonia;
+                this.probTuberculosis  = probTuberculosis;
                 this.inferenceTimeMs   = inferenceTimeMs;
                 this.modelSize         = modelSize;
                 this.memoryUsedMb      = memoryUsedMb;
@@ -76,7 +81,6 @@ public class MainViewModel extends AndroidViewModel {
         classifyImage(uri);
     }
 
-
     private void classifyImage(Uri uri) {
         uiState.setValue(new UiState.Loading());
         Context context = getApplication().getApplicationContext();
@@ -87,34 +91,31 @@ public class MainViewModel extends AndroidViewModel {
 
                 try (XRayClassifier classifier = new XRayClassifier(context)) {
                     XRayClassifier.Result result = classifier.classify(bitmap);
+                    List<String> labels = classifier.getLabels();
 
-                    // Sum probabilities of all non-Normal classes as "pneumonia" probability
-                    int probNormal = result.probFor(classifier.getLabels(), "Normal");
-                    int probPneumonia = 100 - probNormal;
+                    int probCovid        = result.probFor(labels, "COVID-19");
+                    int probNormal       = result.probFor(labels, "Normal");
+                    int probPneumonia    = result.probFor(labels, "Pneumonia");
+                    int probTuberculosis = result.probFor(labels, "Tuberculosis");
+
+                    boolean isPositive = !result.label.equalsIgnoreCase("Normal");
 
                     long   usedMb      = readMemoryUsedMb();
                     long   availableMb = readMemoryAvailableMb(context);
                     int    memPercent  = (usedMb + availableMb) > 0
-                            ? (int) (usedMb * 100L / (usedMb + availableMb)) : 0;
+                            ? (int)(usedMb * 100L / (usedMb + availableMb)) : 0;
                     String modelSize   = getModelSize(context);
 
                     uiState.postValue(new UiState.Success(
-                            result.label,
-                            result.confidence,
-                            result.isPneumonia,
-                            probPneumonia,
-                            probNormal,
-                            result.inferenceMs,
-                            modelSize,
-                            usedMb,
-                            availableMb,
-                            memPercent
+                            result.label, result.confidence, isPositive,
+                            probCovid, probNormal, probPneumonia, probTuberculosis,
+                            result.inferenceMs, modelSize,
+                            usedMb, availableMb, memPercent
                     ));
                 }
 
             } catch (Exception e) {
-                uiState.postValue(new UiState.Error(
-                        "Classification failed: " + e.getMessage()));
+                uiState.postValue(new UiState.Error("Classification failed: " + e.getMessage()));
             }
         });
     }
@@ -140,9 +141,7 @@ public class MainViewModel extends AndroidViewModel {
         try {
             long bytes = context.getAssets().openFd("model_int8.tflite").getLength();
             return String.format("%.1f MB", bytes / (1024.0 * 1024.0));
-        } catch (IOException e) {
-            return "N/A";
-        }
+        } catch (IOException e) { return "N/A"; }
     }
 
     public static long readMemoryUsedMb() {
@@ -152,8 +151,7 @@ public class MainViewModel extends AndroidViewModel {
 
     public static long readMemoryAvailableMb(Context context) {
         ActivityManager.MemoryInfo info = new ActivityManager.MemoryInfo();
-        ActivityManager am = (ActivityManager)
-                context.getSystemService(Context.ACTIVITY_SERVICE);
+        ActivityManager am = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
         if (am != null) { am.getMemoryInfo(info); return info.availMem / (1024 * 1024); }
         return 0;
     }

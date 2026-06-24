@@ -284,21 +284,83 @@
                             android:letterSpacing="0.05"
                             android:layout_marginBottom="12dp" />
 
+                        <!-- COVID-19 row -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginBottom="4dp">
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="COVID-19"
+                                android:textAppearance="@style/TextAppearance.Material3.BodyMedium" />
+                            <TextView
+                                android:id="@+id/tvProbCovid"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="--"
+                                android:textAppearance="@style/TextAppearance.Material3.LabelMedium"
+                                android:textStyle="bold"
+                                android:layout_marginStart="8dp" />
+                        </LinearLayout>
+                        <ProgressBar
+                            android:id="@+id/barCovid"
+                            style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+                            android:layout_width="match_parent"
+                            android:layout_height="8dp"
+                            android:layout_marginBottom="12dp"
+                            android:max="100"
+                            android:progress="0"
+                            android:progressTint="#FF5722" />
+
+                        <!-- Normal row -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginBottom="4dp">
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Normal"
+                                android:textAppearance="@style/TextAppearance.Material3.BodyMedium" />
+                            <TextView
+                                android:id="@+id/tvProbNormal"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="--"
+                                android:textAppearance="@style/TextAppearance.Material3.LabelMedium"
+                                android:textStyle="bold"
+                                android:layout_marginStart="8dp" />
+                        </LinearLayout>
+                        <ProgressBar
+                            android:id="@+id/barNormal"
+                            style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+                            android:layout_width="match_parent"
+                            android:layout_height="8dp"
+                            android:layout_marginBottom="12dp"
+                            android:max="100"
+                            android:progress="0"
+                            android:progressTint="#4CAF50" />
+
                         <!-- Pneumonia row -->
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:orientation="horizontal"
                             android:gravity="center_vertical"
-                            android:layout_marginBottom="8dp">
-
+                            android:layout_marginBottom="4dp">
                             <TextView
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
                                 android:text="Pneumonia"
                                 android:textAppearance="@style/TextAppearance.Material3.BodyMedium" />
-
                             <TextView
                                 android:id="@+id/tvProbPneumonia"
                                 android:layout_width="wrap_content"
@@ -308,7 +370,6 @@
                                 android:textStyle="bold"
                                 android:layout_marginStart="8dp" />
                         </LinearLayout>
-
                         <ProgressBar
                             android:id="@+id/barPneumonia"
                             style="@style/Widget.AppCompat.ProgressBar.Horizontal"
@@ -319,23 +380,21 @@
                             android:progress="0"
                             android:progressTint="@color/design_default_color_error" />
 
-                        <!-- Normal row -->
+                        <!-- Tuberculosis row -->
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:orientation="horizontal"
                             android:gravity="center_vertical"
-                            android:layout_marginBottom="8dp">
-
+                            android:layout_marginBottom="4dp">
                             <TextView
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
-                                android:text="Normal"
+                                android:text="Tuberculosis"
                                 android:textAppearance="@style/TextAppearance.Material3.BodyMedium" />
-
                             <TextView
-                                android:id="@+id/tvProbNormal"
+                                android:id="@+id/tvProbTuberculosis"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="--"
@@ -343,15 +402,14 @@
                                 android:textStyle="bold"
                                 android:layout_marginStart="8dp" />
                         </LinearLayout>
-
                         <ProgressBar
-                            android:id="@+id/barNormal"
+                            android:id="@+id/barTuberculosis"
                             style="@style/Widget.AppCompat.ProgressBar.Horizontal"
                             android:layout_width="match_parent"
                             android:layout_height="8dp"
                             android:max="100"
                             android:progress="0"
-                            android:progressTint="#4CAF50" />
+                            android:progressTint="#9C27B0" />
 
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>

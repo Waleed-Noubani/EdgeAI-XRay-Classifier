@@ -87,9 +87,9 @@ public class XRayClassifier implements AutoCloseable {
         int[] pixels = new int[INPUT_SIZE * INPUT_SIZE];
         resized.getPixels(pixels, 0, INPUT_SIZE, 0, 0, INPUT_SIZE, INPUT_SIZE);
         for (int px : pixels) {
-            inputBuffer.putFloat(((px >> 16) & 0xFF) / 255.0f); // R
-            inputBuffer.putFloat(((px >>  8) & 0xFF) / 255.0f); // G
-            inputBuffer.putFloat(( px        & 0xFF) / 255.0f); // B
+            inputBuffer.putFloat((((px >> 16) & 0xFF) / 127.5f) - 1.0f); // R
+            inputBuffer.putFloat((((px >> 16) & 0xFF) / 127.5f) - 1.0f); // G
+            inputBuffer.putFloat((((px >> 16) & 0xFF) / 127.5f) - 1.0f); // B
         }
         inputBuffer.rewind();
 

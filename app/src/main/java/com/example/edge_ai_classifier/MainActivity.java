@@ -31,6 +31,7 @@ public class MainActivity extends AppCompatActivity {
         setupListeners();
         observeViewModel();
     }
+
     private void setupListeners() {
         binding.btnSelectImage.setOnClickListener(v ->
                 selectImageLauncher.launch("image/*"));
@@ -59,19 +60,15 @@ public class MainActivity extends AppCompatActivity {
                 binding.btnSelectImage.setEnabled(false);
 
             } else if (state instanceof MainViewModel.UiState.Success) {
-                MainViewModel.UiState.Success result =
-                        (MainViewModel.UiState.Success) state;
                 binding.progressBar.setVisibility(View.GONE);
                 binding.btnSelectImage.setEnabled(true);
-                showResults(result);
+                showResults((MainViewModel.UiState.Success) state);
 
             } else if (state instanceof MainViewModel.UiState.Error) {
-                MainViewModel.UiState.Error error =
-                        (MainViewModel.UiState.Error) state;
+                MainViewModel.UiState.Error error = (MainViewModel.UiState.Error) state;
                 binding.progressBar.setVisibility(View.GONE);
                 binding.btnSelectImage.setEnabled(true);
-                Snackbar.make(binding.getRoot(), error.message,
-                        Snackbar.LENGTH_LONG).show();
+                Snackbar.make(binding.getRoot(), error.message, Snackbar.LENGTH_LONG).show();
             }
         });
     }
@@ -79,19 +76,25 @@ public class MainActivity extends AppCompatActivity {
     private void showResults(MainViewModel.UiState.Success r) {
         binding.layoutResults.setVisibility(View.VISIBLE);
 
-        // Original fields
+        // Diagnosis
         binding.tvPrediction.setText(r.prediction);
         binding.tvConfidence.setText(r.confidence + "%");
         binding.confidenceBar.setProgress(r.confidence);
         binding.chipStatus.setVisibility(View.VISIBLE);
         binding.chipStatus.setText(r.isPositive ? "Positive" : "Normal");
 
-        // Probabilities
-        binding.tvProbPneumonia.setText(r.probPneumonia + "%");
-        binding.barPneumonia.setProgress(r.probPneumonia);
+        // All 4 class probabilities
+        binding.tvProbCovid.setText(r.probCovid + "%");
+        binding.barCovid.setProgress(r.probCovid);
 
         binding.tvProbNormal.setText(r.probNormal + "%");
         binding.barNormal.setProgress(r.probNormal);
+
+        binding.tvProbPneumonia.setText(r.probPneumonia + "%");
+        binding.barPneumonia.setProgress(r.probPneumonia);
+
+        binding.tvProbTuberculosis.setText(r.probTuberculosis + "%");
+        binding.barTuberculosis.setProgress(r.probTuberculosis);
 
         // Performance
         binding.tvInferenceTime.setText(r.inferenceTimeMs + " ms");
