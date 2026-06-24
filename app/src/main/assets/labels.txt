@@ -1,4 +1,4 @@
-Normal
-Viral Pneumonia
-Bacterial Pneumonia
 COVID-19
+Normal
+Pneumonia
+Turberclulosis
