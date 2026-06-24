@@ -32,6 +32,15 @@ android {
     buildFeatures {
         viewBinding = true
     }
+
+    // Prevent compression of .tflite model files so TFLite can mmap them
+    androidResources {
+        noCompress += listOf("tflite")
+    }
+}
+configurations.all {
+    exclude(group = "com.google.ai.edge.litert", module = "litert")
+    exclude(group = "com.google.ai.edge.litert", module = "litert-api")
 }
 
 dependencies {
@@ -42,6 +51,9 @@ dependencies {
     
     implementation("androidx.lifecycle:lifecycle-viewmodel:2.8.7")
     implementation("androidx.lifecycle:lifecycle-livedata:2.8.7")
+
+    // tensorflow dependencies
+    implementation("org.tensorflow:tensorflow-lite:2.16.1")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

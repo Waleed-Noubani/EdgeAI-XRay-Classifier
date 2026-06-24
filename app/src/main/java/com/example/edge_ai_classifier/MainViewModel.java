@@ -1,22 +1,31 @@
 package com.example.edge_ai_classifier;
 
 import android.app.ActivityManager;
+import android.app.Application;
+import android.content.ContentResolver;
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.ImageDecoder;
 import android.net.Uri;
-import android.os.Handler;
-import android.os.Looper;
+import android.os.Build;
+import android.provider.MediaStore;
 
+import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
-import androidx.lifecycle.ViewModel;
 
-public class MainViewModel extends ViewModel {
+import java.io.File;
+import java.io.IOException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
+public class MainViewModel extends AndroidViewModel {
 
     public static abstract class UiState {
 
-        public static class Idle extends UiState {}
+        public static class Idle    extends UiState {}
         public static class Loading extends UiState {}
+
         public static class Success extends UiState {
             public final String prediction;
             public final int    confidence;
@@ -29,18 +38,21 @@ public class MainViewModel extends ViewModel {
             public final long   memoryAvailableMb;
             public final int    memoryUsedPercent;
 
-            public Success(String prediction, int confidence,boolean isPositive,int probPneumonia,int probNormal,
-                           long inferenceTimeMs,String modelSize,long memoryUsedMb,long memoryAvailableMb,int memoryUsedPercent) {
-                this.prediction         = prediction;
-                this.confidence         = confidence;
-                this.isPositive         = isPositive;
-                this.probPneumonia      = probPneumonia;
-                this.probNormal         = probNormal;
-                this.inferenceTimeMs    = inferenceTimeMs;
-                this.modelSize          = modelSize;
-                this.memoryUsedMb       = memoryUsedMb;
-                this.memoryAvailableMb  = memoryAvailableMb;
-                this.memoryUsedPercent  = memoryUsedPercent;
+            public Success(String prediction, int confidence, boolean isPositive,
+                           int probPneumonia, int probNormal,
+                           long inferenceTimeMs, String modelSize,
+                           long memoryUsedMb, long memoryAvailableMb,
+                           int memoryUsedPercent) {
+                this.prediction        = prediction;
+                this.confidence        = confidence;
+                this.isPositive        = isPositive;
+                this.probPneumonia     = probPneumonia;
+                this.probNormal        = probNormal;
+                this.inferenceTimeMs   = inferenceTimeMs;
+                this.modelSize         = modelSize;
+                this.memoryUsedMb      = memoryUsedMb;
+                this.memoryAvailableMb = memoryAvailableMb;
+                this.memoryUsedPercent = memoryUsedPercent;
             }
         }
 
@@ -50,63 +62,118 @@ public class MainViewModel extends ViewModel {
         }
     }
 
-    // LiveData
     private final MutableLiveData<Uri>     selectedImageUri = new MutableLiveData<>();
-    private final MutableLiveData<UiState> uiState          = new MutableLiveData<>(new UiState.Idle());
+    private final MutableLiveData<UiState> uiState          =
+            new MutableLiveData<>(new UiState.Idle());
+
     public LiveData<Uri>     getSelectedImageUri() { return selectedImageUri; }
     public LiveData<UiState> getUiState()          { return uiState; }
 
-    // Public API
-    public void onImageSelected(Uri uri) {
-        selectedImageUri.setValue(uri);
-        classifyImage();
+    // Single-thread executor keeps inference off the main thread
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+
+    public MainViewModel(Application app) {
+        super(app);
     }
 
-    // Private helpers
-    private void classifyImage() {
+    public void onImageSelected(Uri uri) {
+        selectedImageUri.setValue(uri);
+        classifyImage(uri);
+    }
+
+    private void classifyImage(Uri uri) {
         uiState.setValue(new UiState.Loading());
 
-        long startTime = System.currentTimeMillis();
+        Context context = getApplication().getApplicationContext();
 
-        // Simulate processing delay
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            long inferenceTime = System.currentTimeMillis() - startTime;
+        executor.execute(() -> {
+            try {
+                // 1. Decode Bitmap from URI
+                Bitmap bitmap = uriToBitmap(context, uri);
 
-            // Simulated classification result
-            int probPneumonia = 96;
-            int probNormal    = 100 - probPneumonia;
+                // 2. Run TFLite inference
+                try (XRayClassifier classifier = new XRayClassifier(context)) {
+                    XRayClassifier.Result result = classifier.classify(bitmap);
 
-            // Model is always 4.8 MB (TFLite asset — fixed)
-            String modelSize = "4.8 MB";
+                    // 3. Read real device memory
+                    long usedMb      = readMemoryUsedMb();
+                    long availableMb = readMemoryAvailableMb(context);
+                    int  memPercent  = (availableMb + usedMb) > 0
+                            ? (int) (usedMb * 100L / (usedMb + availableMb))
+                            : 0;
 
-            // Read real device memory via ActivityManager
-            // NOTE: pass application context from Application class or
-            //       store it in ViewModel constructor if needed.
-            // Here we use placeholder values; wire up real context as shown below.
-            long   memUsedMb      = 128;   // placeholder — replace with readMemoryUsed()
-            long   memAvailableMb = 512;   // placeholder — replace with readMemoryAvailable()
-            int    memPercent     = (int) ((memUsedMb * 100L) / (memUsedMb + memAvailableMb));
+                    // 4. Model file size from assets
+                    String modelSize = getModelSize(context);
 
-            UiState.Success result = new UiState.Success("Pneumonia",probPneumonia,true,probPneumonia, probNormal,inferenceTime,
-                    modelSize,memUsedMb,memAvailableMb,memPercent
-            );
-            uiState.setValue(result);
-        }, 1500);
+                    // 5. Post success on main thread
+                    UiState.Success success = new UiState.Success(
+                            result.label,
+                            result.confidence,
+                            result.isPneumonia,
+                            result.probPneumonia,
+                            result.probNormal,
+                            result.inferenceMs,
+                            modelSize,
+                            usedMb,
+                            availableMb,
+                            memPercent
+                    );
+                    uiState.postValue(success);
+                }
+
+            } catch (Exception e) {
+                uiState.postValue(new UiState.Error(
+                        "Classification failed: " + e.getMessage()));
+            }
+        });
+    }
+
+
+    private static Bitmap uriToBitmap(Context context, Uri uri) throws IOException {
+        ContentResolver cr = context.getContentResolver();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            return ImageDecoder.decodeBitmap(
+                    ImageDecoder.createSource(cr, uri),
+                    (decoder, info, src) -> {
+                        decoder.setMutableRequired(true);
+                        decoder.setTargetColorSpace(
+                                android.graphics.ColorSpace.get(
+                                        android.graphics.ColorSpace.Named.SRGB));
+                    });
+        } else {
+            //noinspection deprecation
+            return MediaStore.Images.Media.getBitmap(cr, uri);
+        }
+    }
+    private static String getModelSize(Context context) {
+        try {
+            long bytes = context.getAssets().openFd("model_int8.tflite").getLength();
+            return String.format("%.1f MB", bytes / (1024.0 * 1024.0));
+        } catch (IOException e) {
+            return "N/A";
+        }
     }
 
     public static long readMemoryUsedMb() {
-        Runtime rt = Runtime.getRuntime();
-        long usedBytes = rt.totalMemory() - rt.freeMemory();
+        Runtime rt        = Runtime.getRuntime();
+        long usedBytes    = rt.totalMemory() - rt.freeMemory();
         return usedBytes / (1024 * 1024);
     }
 
     public static long readMemoryAvailableMb(Context context) {
         ActivityManager.MemoryInfo info = new ActivityManager.MemoryInfo();
-        ActivityManager am = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+        ActivityManager am = (ActivityManager)
+                context.getSystemService(Context.ACTIVITY_SERVICE);
         if (am != null) {
             am.getMemoryInfo(info);
             return info.availMem / (1024 * 1024);
         }
         return 0;
+    }
+
+    @Override
+    protected void onCleared() {
+        super.onCleared();
+        executor.shutdownNow();
     }
 }
