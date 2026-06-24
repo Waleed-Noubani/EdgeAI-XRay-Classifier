@@ -1,2 +1,4 @@
 Normal
-Pneumonia
+Viral Pneumonia
+Bacterial Pneumonia
+COVID-19

@@ -14,7 +14,6 @@ import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -30,7 +29,7 @@ public class MainViewModel extends AndroidViewModel {
             public final String prediction;
             public final int    confidence;
             public final boolean isPositive;
-            public final int    probPneumonia;
+            public final int    probPneumonia;  // combined probability of any pneumonia class
             public final int    probNormal;
             public final long   inferenceTimeMs;
             public final String modelSize;
@@ -41,8 +40,7 @@ public class MainViewModel extends AndroidViewModel {
             public Success(String prediction, int confidence, boolean isPositive,
                            int probPneumonia, int probNormal,
                            long inferenceTimeMs, String modelSize,
-                           long memoryUsedMb, long memoryAvailableMb,
-                           int memoryUsedPercent) {
+                           long memoryUsedMb, long memoryAvailableMb, int memoryUsedPercent) {
                 this.prediction        = prediction;
                 this.confidence        = confidence;
                 this.isPositive        = isPositive;
@@ -63,62 +61,55 @@ public class MainViewModel extends AndroidViewModel {
     }
 
     private final MutableLiveData<Uri>     selectedImageUri = new MutableLiveData<>();
-    private final MutableLiveData<UiState> uiState          =
+    private final MutableLiveData<UiState> uiState =
             new MutableLiveData<>(new UiState.Idle());
 
     public LiveData<Uri>     getSelectedImageUri() { return selectedImageUri; }
     public LiveData<UiState> getUiState()          { return uiState; }
 
-    // Single-thread executor keeps inference off the main thread
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
-    public MainViewModel(Application app) {
-        super(app);
-    }
+    public MainViewModel(Application app) { super(app); }
 
     public void onImageSelected(Uri uri) {
         selectedImageUri.setValue(uri);
         classifyImage(uri);
     }
 
+
     private void classifyImage(Uri uri) {
         uiState.setValue(new UiState.Loading());
-
         Context context = getApplication().getApplicationContext();
 
         executor.execute(() -> {
             try {
-                // 1. Decode Bitmap from URI
                 Bitmap bitmap = uriToBitmap(context, uri);
 
-                // 2. Run TFLite inference
                 try (XRayClassifier classifier = new XRayClassifier(context)) {
                     XRayClassifier.Result result = classifier.classify(bitmap);
 
-                    // 3. Read real device memory
-                    long usedMb      = readMemoryUsedMb();
-                    long availableMb = readMemoryAvailableMb(context);
-                    int  memPercent  = (availableMb + usedMb) > 0
-                            ? (int) (usedMb * 100L / (usedMb + availableMb))
-                            : 0;
+                    // Sum probabilities of all non-Normal classes as "pneumonia" probability
+                    int probNormal = result.probFor(classifier.getLabels(), "Normal");
+                    int probPneumonia = 100 - probNormal;
 
-                    // 4. Model file size from assets
-                    String modelSize = getModelSize(context);
+                    long   usedMb      = readMemoryUsedMb();
+                    long   availableMb = readMemoryAvailableMb(context);
+                    int    memPercent  = (usedMb + availableMb) > 0
+                            ? (int) (usedMb * 100L / (usedMb + availableMb)) : 0;
+                    String modelSize   = getModelSize(context);
 
-                    // 5. Post success on main thread
-                    UiState.Success success = new UiState.Success(
+                    uiState.postValue(new UiState.Success(
                             result.label,
                             result.confidence,
                             result.isPneumonia,
-                            result.probPneumonia,
-                            result.probNormal,
+                            probPneumonia,
+                            probNormal,
                             result.inferenceMs,
                             modelSize,
                             usedMb,
                             availableMb,
                             memPercent
-                    );
-                    uiState.postValue(success);
+                    ));
                 }
 
             } catch (Exception e) {
@@ -127,7 +118,6 @@ public class MainViewModel extends AndroidViewModel {
             }
         });
     }
-
 
     private static Bitmap uriToBitmap(Context context, Uri uri) throws IOException {
         ContentResolver cr = context.getContentResolver();
@@ -145,6 +135,7 @@ public class MainViewModel extends AndroidViewModel {
             return MediaStore.Images.Media.getBitmap(cr, uri);
         }
     }
+
     private static String getModelSize(Context context) {
         try {
             long bytes = context.getAssets().openFd("model_int8.tflite").getLength();
@@ -155,19 +146,15 @@ public class MainViewModel extends AndroidViewModel {
     }
 
     public static long readMemoryUsedMb() {
-        Runtime rt        = Runtime.getRuntime();
-        long usedBytes    = rt.totalMemory() - rt.freeMemory();
-        return usedBytes / (1024 * 1024);
+        Runtime rt = Runtime.getRuntime();
+        return (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024);
     }
 
     public static long readMemoryAvailableMb(Context context) {
         ActivityManager.MemoryInfo info = new ActivityManager.MemoryInfo();
         ActivityManager am = (ActivityManager)
                 context.getSystemService(Context.ACTIVITY_SERVICE);
-        if (am != null) {
-            am.getMemoryInfo(info);
-            return info.availMem / (1024 * 1024);
-        }
+        if (am != null) { am.getMemoryInfo(info); return info.availMem / (1024 * 1024); }
         return 0;
     }
 
